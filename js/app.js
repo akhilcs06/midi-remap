@@ -630,10 +630,37 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
     
     /**
      * Add custom preset UI elements
-     */
-    function addCustomPresetUI() {
+     */    function addCustomPresetUI() {
         // Create custom preset section in the panel
         const presetSection = document.querySelector('.preset-section');
+        
+        // Remove existing custom preset elements if they exist
+        const existingLabel = document.querySelector('label[for="customPreset"]');
+        const existingSelect = document.getElementById('customPreset');
+        if (existingLabel) {
+            existingLabel.remove();
+        }
+        if (existingSelect) {
+            existingSelect.remove();
+        }
+          // Only proceed with dropdown if we have custom presets to add
+        if (Object.keys(customPresets).length === 0) {
+            console.log('No custom presets available, showing help message instead');
+            
+            // Create and add a help message instead of the dropdown
+            const helpText = document.createElement('div');
+            helpText.className = 'custom-preset-help';
+            helpText.id = 'customPresetHelp';
+            helpText.innerHTML = 'Create mappings and click "Save Current Mapping" to add custom presets';
+            helpText.style.gridColumn = 'span 2';
+            helpText.style.color = 'var(--text-light)';
+            helpText.style.fontStyle = 'italic';
+            helpText.style.fontSize = '0.9rem';
+            helpText.style.marginTop = '0.5rem';
+            
+            presetSection.appendChild(helpText);
+            return;
+        }
         
         const customPresetLabel = document.createElement('label');
         customPresetLabel.textContent = 'Custom Presets:';
@@ -642,11 +669,12 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
         const customPresetSelect = document.createElement('select');
         customPresetSelect.id = 'customPreset';
         customPresetSelect.className = 'preset-select';
-        
-        // Add default option
+          // Add default option
         const defaultOption = document.createElement('option');
-        defaultOption.value = '';
+        defaultOption.value = '';  // Empty value
         defaultOption.textContent = '-- Select a Custom Preset --';
+        defaultOption.disabled = true;  // Prevent selecting the placeholder
+        defaultOption.selected = true;  // Make it the default selection
         customPresetSelect.appendChild(defaultOption);
         
         // Add options for each custom preset
@@ -656,13 +684,24 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
             option.textContent = preset.name;
             customPresetSelect.appendChild(option);
         });
-        
-        // Add event listener to apply custom preset
+          // Add event listener to apply custom preset
         customPresetSelect.addEventListener('change', (e) => {
             const selectedPreset = e.target.value;
-            if (selectedPreset && customPresets[selectedPreset]) {
-                applyCustomPreset(customPresets[selectedPreset]);
+            
+            // Validate the selection
+            if (!selectedPreset) {
+                console.log('No preset selected');
+                return;
             }
+            
+            if (!customPresets[selectedPreset]) {
+                console.warn('Selected preset not found:', selectedPreset);
+                showToast('The selected preset could not be found.', 'warning', 'Invalid Selection');
+                return;
+            }
+            
+            // Apply the selected preset
+            applyCustomPreset(customPresets[selectedPreset]);
         });
         
         // Add to the UI
@@ -736,10 +775,17 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
         
         // Add to the custom presets
         customPresets[presetKey] = newPreset;
-        
-        // Update the custom preset dropdown
+          // Check if this is the first custom preset
+        const helpText = document.getElementById('customPresetHelp');
         const customPresetSelect = document.getElementById('customPreset');
-        if (customPresetSelect) {
+        
+        if (helpText) {
+            // Remove the help text since we now have presets
+            helpText.remove();
+            // Rebuild the entire custom preset UI
+            addCustomPresetUI();
+        } else if (customPresetSelect) {
+            // Just add the new option to the existing dropdown
             const option = document.createElement('option');
             option.value = presetKey;
             option.textContent = presetName;
@@ -747,6 +793,9 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
             
             // Select the new preset
             customPresetSelect.value = presetKey;
+        } else {
+            // No existing UI elements, create them
+            addCustomPresetUI();
         }
         
         showToast('Preset saved successfully!', 'success', 'Preset Saved');
@@ -822,8 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
             const file = e.target.files[0];
             if (!file) return;
             
-            const reader = new FileReader();
-            reader.onload = event => {
+            const reader = new FileReader();            reader.onload = event => {
                 try {
                     // Parse the JSON
                     const importedPresets = JSON.parse(event.target.result);
@@ -833,6 +881,20 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
                         throw new Error('Invalid presets format');
                     }
                     
+                    // Check if imported data is in the expected format
+                    let validPresets = 0;
+                    Object.entries(importedPresets).forEach(([key, preset]) => {
+                        if (preset && preset.name && preset.customMapping) {
+                            validPresets++;
+                        }
+                    });
+                    
+                    if (validPresets === 0) {
+                        throw new Error('No valid preset definitions found in the imported file');
+                    }
+                    
+                    console.log(`Found ${validPresets} valid presets to import`);
+                    
                     // Merge with existing presets
                     const mergedPresets = { ...customPresets, ...importedPresets };
                     customPresets = mergedPresets;
@@ -840,13 +902,13 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
                     // Save to localStorage
                     localStorage.setItem('midiRemapperPresets', JSON.stringify(customPresets));
                     
-                    // Refresh the custom preset UI
+                    // Refresh the custom preset UI - this will remove existing elements first
                     addCustomPresetUI();
                     
-                    showToast('Presets imported successfully!', 'success', 'Presets Imported');
+                    showToast(`Successfully imported ${validPresets} presets`, 'success', 'Presets Imported');
                 } catch (err) {
                     console.error('Error importing presets:', err);
-                    showToast('Failed to import presets. Invalid format.', 'error', 'Import Failed');
+                    showToast('Failed to import presets: ' + err.message, 'error', 'Import Failed');
                 }
             };
             
