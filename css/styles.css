@@ -674,3 +674,15 @@ select option {
     background-color: #fff !important;
     color: #000 !important;
 }
+
+/* Dropdown validation styling */
+select.unmapped-highlight {
+    border-color: var(--warning-color);
+    background-color: rgba(245, 158, 11, 0.1);
+    animation: pulse 1.5s infinite;
+}
+
+.dark-mode select.unmapped-highlight {
+    border-color: var(--warning-color);
+    background-color: rgba(245, 158, 11, 0.2);
+}

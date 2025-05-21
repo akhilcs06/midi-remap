@@ -63,10 +63,11 @@
                     
                     <!-- Custom presets will be added here by JavaScript -->
                 </div>
-                
-                <div class="mapping-controls">
+                  <div class="mapping-controls">
                     <button id="savePresetBtn" class="secondary-btn">Save Current Mapping</button>
                     <button id="clearMappingBtn" class="warning-btn">Clear Mapping</button>
+                    <button id="exportPresetsBtn" class="secondary-btn">Export Presets</button>
+                    <button id="importPresetsBtn" class="secondary-btn">Import Presets</button>
                 </div>
             </div>
 
@@ -95,26 +96,22 @@
             <div class="preview-content" id="previewContent">
                 <p>No MIDI data to display</p>
             </div>
-        </div>
-    </div>    <footer>
+        </div>    </div>    <footer>
         <p>&copy; 2025 MIDI Drum Remapper</p>
-    </footer>    <!-- Load the MIDI library from local node_modules with defer attribute for better performance -->
-    <script src="node_modules/@tonejs/midi/build/Midi.js"></script>
-    <script>
-        // Make sure the Midi constructor is globally available
-        if (typeof Midi === 'undefined') {
-            console.error('Midi constructor not directly available');
-            if (typeof window.Tone !== 'undefined' && window.Tone.Midi) {
-                console.log('Making Midi available from Tone.Midi');
-                window.Midi = window.Tone.Midi;
-            } else {
-                console.error('Cannot find Midi constructor anywhere!');
-            }
-        } else {
-            console.log('Midi constructor is available globally');
-        }
-    </script>    <script src="js/presets.js"></script>
-    <script src="js/presets-loader.js"></script>
-    <script src="js/app.js"></script>
+    </footer>
+    
+    <!-- Load scripts as ES modules -->
+    <script type="module">
+        // Import from CDN 
+        import { Midi } from 'https://cdn.skypack.dev/@tonejs/midi';
+        
+        // Make Midi constructor available globally for compatibility
+        window.Midi = Midi;
+        
+        // Import our app scripts in the right order
+        import './js/presets.js';
+        import './js/presets-loader.js';
+        import './js/app.js';
+    </script>
 </body>
 </html>

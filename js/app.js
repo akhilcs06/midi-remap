@@ -2,6 +2,7 @@
  * MIDI Drum Remapper Application
  * A web app to remap MIDI drum notes from one library to another
  */
+import { DRUM_PRESETS } from './presets.js';
 
 document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
     const dropZone = document.getElementById('dropZone');
@@ -13,9 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
     const targetPresetSelect = document.getElementById('targetPreset');
     const downloadBtn = document.getElementById('downloadBtn');
     const previewContent = document.getElementById('previewContent');
-    const notePreview = document.getElementById('notePreview');
-    const savePresetBtn = document.getElementById('savePresetBtn');
+    const notePreview = document.getElementById('notePreview');    const savePresetBtn = document.getElementById('savePresetBtn');
     const clearMappingBtn = document.getElementById('clearMappingBtn');
+    const exportPresetsBtn = document.getElementById('exportPresetsBtn');
+    const importPresetsBtn = document.getElementById('importPresetsBtn');
     const darkModeToggle = document.getElementById('darkModeToggle');
     const uploadIcon = document.getElementById('uploadIcon');
     const toastContainer = document.getElementById('toast-container');
@@ -319,10 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
         
         // Clear the current mapping
         currentMapping = {};
-        
-        // Get source and target preset data
-        const sourceMapping = window.DRUM_PRESETS[sourcePreset].mapping;
-        const targetMapping = window.DRUM_PRESETS[targetPreset].mapping;
+          // Get source and target preset data
+        const sourceMapping = DRUM_PRESETS[sourcePreset].mapping;
+        const targetMapping = DRUM_PRESETS[targetPreset].mapping;
         
         // Sort the source MIDI notes
         const sortedNotes = [...sourceMidiNotes].sort((a, b) => a - b);
@@ -516,10 +517,9 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
             previewContent.innerHTML = '<p>No MIDI data to display</p>';
             return;
         }
-        
-        previewContent.innerHTML = '';
+          previewContent.innerHTML = '';
           // Get the source preset for note names
-        const sourcePreset = window.DRUM_PRESETS[sourcePresetSelect.value].mapping;
+        const sourcePreset = DRUM_PRESETS[sourcePresetSelect.value].mapping;
         
         // Collect all unique notes from the MIDI file
         const allNotes = new Map();
@@ -583,28 +583,48 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
                 console.error('Error loading presets from localStorage:', e);
             }
         }
-        
-        // Fall back to fetching the preset file
-        fetch('presets/custom_mappings.json')
+          // Try to fetch the preset file from different locations
+        // First try the root directory
+        fetch('custom_mappings.json')
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to load custom presets');
+                    // If not found in root, try the presets folder
+                    throw new Error('Not found in root directory');
                 }
                 return response.json();
             })
             .then(data => {
                 customPresets = data || {};
-                console.log('Custom presets loaded from file:', customPresets);
+                console.log('Custom presets loaded from root directory:', customPresets);
                 
                 // Add custom preset section to the UI
                 addCustomPresetUI();
             })
             .catch(error => {
-                console.error('Error loading custom presets:', error);
-                // Initialize with empty presets instead of showing error
-                customPresets = {};
-                addCustomPresetUI();
-                console.log('Initialized with empty custom presets due to error');
+                console.log('Trying preset folder as fallback location');
+                
+                // Try the presets folder as fallback
+                fetch('presets/custom_mappings.json')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load custom presets from both locations');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        customPresets = data || {};
+                        console.log('Custom presets loaded from presets folder:', customPresets);
+                        
+                        // Add custom preset section to the UI
+                        addCustomPresetUI();
+                    })
+                    .catch(secondError => {
+                        console.error('Error loading custom presets:', secondError);
+                        // Initialize with empty presets instead of showing error
+                        customPresets = {};
+                        addCustomPresetUI();
+                        console.log('Initialized with empty custom presets due to error');
+                    });
             });
     }
     
@@ -757,6 +777,90 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
         showToast('Mapping has been cleared.', 'info', 'Mapping Cleared');
     }
     
+    /**
+     * Export custom presets to a JSON file
+     */
+    function exportCustomPresets() {
+        // If no custom presets, show a message
+        if (Object.keys(customPresets).length === 0) {
+            showToast('No custom presets to export.', 'warning', 'No Presets');
+            return;
+        }
+        
+        // Create a JSON blob
+        const presetsJson = JSON.stringify(customPresets, null, 2);
+        const blob = new Blob([presetsJson], { type: 'application/json' });
+        
+        // Create a download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'midi_remapper_presets.json';
+        
+        // Trigger the download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('Presets exported successfully!', 'success', 'Presets Exported');
+    }
+    
+    /**
+     * Import custom presets from a JSON file
+     */
+    function importCustomPresets() {
+        // Create a file input element
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        
+        // Handle file selection
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    // Parse the JSON
+                    const importedPresets = JSON.parse(event.target.result);
+                    
+                    // Validate the imported data minimally
+                    if (!importedPresets || typeof importedPresets !== 'object') {
+                        throw new Error('Invalid presets format');
+                    }
+                    
+                    // Merge with existing presets
+                    const mergedPresets = { ...customPresets, ...importedPresets };
+                    customPresets = mergedPresets;
+                    
+                    // Save to localStorage
+                    localStorage.setItem('midiRemapperPresets', JSON.stringify(customPresets));
+                    
+                    // Refresh the custom preset UI
+                    addCustomPresetUI();
+                    
+                    showToast('Presets imported successfully!', 'success', 'Presets Imported');
+                } catch (err) {
+                    console.error('Error importing presets:', err);
+                    showToast('Failed to import presets. Invalid format.', 'error', 'Import Failed');
+                }
+            };
+            
+            reader.readAsText(file);
+        };
+        
+        // Trigger the file selection dialog
+        input.click();
+    }
+
+    // Event Listeners
+    exportPresetsBtn.addEventListener('click', exportCustomPresets);
+    importPresetsBtn.addEventListener('click', importCustomPresets);
+
     // Load custom presets on startup
     loadCustomPresets();
 });

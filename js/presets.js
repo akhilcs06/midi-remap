@@ -2,7 +2,7 @@
  * Predefined MIDI drum mapping presets
  * Each preset contains a description and a mapping of note numbers to drum names
  */
-const DRUM_PRESETS = {
+export const DRUM_PRESETS = {
     addictivedrums2: {    name: "Addictive Drums 2",
     description: "Addictive Drums 2 mapping",
     mapping: {
