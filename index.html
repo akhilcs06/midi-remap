@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Drum Remapper</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="toast-container" class="toast-container"></div>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="title-section">
+                    <h1>MIDI Drum Remapper</h1>
+                    <p>Remap drum MIDI notes from one library to another</p>
+                </div>
+                <div class="theme-toggle">
+                    <label class="switch" for="darkModeToggle">
+                        <input type="checkbox" id="darkModeToggle" checked>
+                        <span class="slider round"></span>
+                        <span class="toggle-label">Dark Mode</span>
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <div class="info-panel">
+            <h2>How It Works</h2>
+            <ol>
+                <li>Upload a MIDI drum file using the panel below</li>
+                <li>Choose your source and target drum libraries</li>
+                <li>Map each source note to a target note</li>
+                <li>Apply the mapping to create a new MIDI file</li>
+                <li>Download your remapped MIDI file</li>
+            </ol>
+            <p>You can also use the custom presets for common drum library conversions.</p>
+        </div>
+
+        <div class="upload-section">            <div class="file-upload-area" id="dropZone">
+                <input type="file" id="midiFileInput" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+            <div class="upload-prompt">
+                    <img id="uploadIcon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5c0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5l5 5h-3z'/%3E%3C/svg%3E" alt="Upload" class="upload-icon">
+                    <span>Click or drag a MIDI file here</span>
+                </div>
+            </div>
+            <div class="file-info" id="fileInfo">No file selected</div>
+        </div>
+
+        <div class="mapping-container" id="mappingContainer" style="display: none;">
+            <div class="panel">
+                <h2>Mapping Configuration</h2>
+                  <div class="preset-section">
+                    <label for="sourcePreset">Source Library:</label>
+                    <select id="sourcePreset" class="preset-select">
+                        <!-- Options will be populated dynamically from presets.js -->
+                    </select>
+
+                    <label for="targetPreset">Target Library:</label>
+                    <select id="targetPreset" class="preset-select">
+                        <!-- Options will be populated dynamically from presets.js -->
+                    </select>
+                    
+                    <!-- Custom presets will be added here by JavaScript -->
+                </div>
+                
+                <div class="mapping-controls">
+                    <button id="savePresetBtn" class="secondary-btn">Save Current Mapping</button>
+                    <button id="clearMappingBtn" class="warning-btn">Clear Mapping</button>
+                </div>
+            </div>
+
+            <div class="mapping-table-container">
+                <h2>MIDI Note Mapping</h2>
+                <p>Remap each source note to a target note:</p>
+                <table class="mapping-table" id="mappingTable">
+                    <thead>
+                        <tr>
+                            <th>Source Note</th>
+                            <th>Source Drum Sound</th>
+                            <th>Target Note</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mappingTableBody">
+                        <!-- Mapping rows will be added dynamically here -->
+                    </tbody>
+                </table>
+            </div>            <div class="action-buttons">
+                <button id="downloadBtn" class="primary-btn">Download Remapped MIDI</button>
+            </div>
+        </div>
+        
+        <div class="note-preview" id="notePreview">
+            <h2>MIDI Note Preview</h2>
+            <div class="preview-content" id="previewContent">
+                <p>No MIDI data to display</p>
+            </div>
+        </div>
+    </div>    <footer>
+        <p>&copy; 2025 MIDI Drum Remapper</p>
+    </footer>    <!-- Load the MIDI library from local node_modules with defer attribute for better performance -->
+    <script src="node_modules/@tonejs/midi/build/Midi.js"></script>
+    <script>
+        // Make sure the Midi constructor is globally available
+        if (typeof Midi === 'undefined') {
+            console.error('Midi constructor not directly available');
+            if (typeof window.Tone !== 'undefined' && window.Tone.Midi) {
+                console.log('Making Midi available from Tone.Midi');
+                window.Midi = window.Tone.Midi;
+            } else {
+                console.error('Cannot find Midi constructor anywhere!');
+            }
+        } else {
+            console.log('Midi constructor is available globally');
+        }
+    </script>    <script src="js/presets.js"></script>
+    <script src="js/presets-loader.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

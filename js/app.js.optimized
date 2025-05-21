@@ -1,0 +1,733 @@
+/**
+ * MIDI Drum Remapper Application
+ * A web app to remap MIDI drum notes from one library to another
+ */
+
+document.addEventListener('DOMContentLoaded', () => {    
+    // DOM Elements
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('midiFileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const mappingContainer = document.getElementById('mappingContainer');
+    const mappingTableBody = document.getElementById('mappingTableBody');
+    const sourcePresetSelect = document.getElementById('sourcePreset');
+    const targetPresetSelect = document.getElementById('targetPreset');
+    const applyMappingBtn = document.getElementById('applyMappingBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const previewContent = document.getElementById('previewContent');
+    const notePreview = document.getElementById('notePreview');
+    const savePresetBtn = document.getElementById('savePresetBtn');
+    const clearMappingBtn = document.getElementById('clearMappingBtn');
+    
+    // Custom presets
+    let customPresets = {};
+
+    // Application State
+    let currentMidiFile = null;
+    let parsedMidi = null;
+    let sourceMidiNotes = new Set();
+    let currentMapping = {};
+    
+    // Web Worker for MIDI processing (if browser supports it)
+    let midiWorker = null;
+    try {
+        if (window.Worker) {
+            // Create worker for handling MIDI processing tasks (would need to be implemented)
+            // midiWorker = new Worker('js/midi-worker.js');
+        }
+    } catch (e) {
+        console.warn('Web Workers not supported or available, falling back to main thread processing');
+    }
+
+    // Event Listeners for File Upload
+    fileInput.addEventListener('change', handleFileSelect);
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    // Drag and drop events
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        
+        if (e.dataTransfer.files.length) {
+            handleFiles(e.dataTransfer.files);
+        }
+    });
+
+    // Preset Change Events
+    sourcePresetSelect.addEventListener('change', updateMappingTable);
+    targetPresetSelect.addEventListener('change', updateMappingTable);
+    
+    // Action Buttons
+    applyMappingBtn.addEventListener('click', applyMapping);
+    downloadBtn.addEventListener('click', downloadRemappedMidi);
+    savePresetBtn.addEventListener('click', saveCustomMapping);
+    clearMappingBtn.addEventListener('click', clearMapping);
+
+    /**
+     * Handle file selection from the file input
+     */
+    function handleFileSelect(e) {
+        const files = e.target.files;
+        handleFiles(files);
+    }
+    
+    /**
+     * Process uploaded files
+     */
+    function handleFiles(files) {
+        if (files.length === 0) return;
+        
+        const file = files[0];
+        
+        // Check if it's a MIDI file - more flexible approach
+        const fileName = file.name.toLowerCase();
+        const isValidMidiFile = fileName.endsWith('.mid') || 
+                               fileName.endsWith('.midi') || 
+                               file.type === 'audio/midi' || 
+                               file.type === 'audio/x-midi';
+        
+        if (!isValidMidiFile) {
+            console.log('File rejected:', file.name, 'type:', file.type);
+            alert('Please select a valid MIDI file (.mid or .midi)');
+            return;
+        }
+        
+        currentMidiFile = file;
+        fileInfo.textContent = `Selected file: ${file.name} (${formatFileSize(file.size)}) - Processing...`;
+        console.log('MIDI file accepted:', file.name, 'type:', file.type);
+        
+        // Use setTimeout to prevent UI freezing during processing
+        setTimeout(() => {
+            // Parse the MIDI file
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // Debug the file before parsing
+                    debugMidiFile(file, e.target.result);
+                    
+                    // Make sure the Midi constructor is available
+                    console.log('Checking Midi constructor availability');
+                    if (typeof Midi === 'undefined') {
+                        console.error('Midi constructor is not defined in the global scope');
+                        
+                        // Try to find it in other possible locations
+                        if (typeof window.Midi !== 'undefined') {
+                            console.log('Found Midi in window.Midi, using that instead');
+                            window.Midi = window.Midi;
+                        } else {
+                            // Load the Midi constructor dynamically as a last resort
+                            console.error('Cannot find Midi constructor, application will not work properly');
+                            alert('MIDI library not loaded properly. Please refresh the page and try again.');
+                            return;
+                        }
+                    }
+                    
+                    console.log('Attempting to parse MIDI file using constructor:', typeof Midi);
+                    
+                    // Use requestAnimationFrame to parse in the next frame to avoid UI blocking
+                    requestAnimationFrame(() => {
+                        try {
+                            // Parse MIDI using the constructor
+                            parsedMidi = new Midi(e.target.result);
+                            
+                            // Check if the MIDI file contains notes
+                            let hasNotes = false;
+                            for (const track of parsedMidi.tracks) {
+                                if (track.notes && track.notes.length > 0) {
+                                    hasNotes = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!hasNotes) {
+                                console.warn('MIDI file parsed successfully but contains no notes');
+                                alert('The MIDI file was loaded but contains no notes. Please select a MIDI file with drum notes.');
+                                return;
+                            }
+                            
+                            // Extract and display drum notes
+                            extractDrumNotes();
+                            
+                            // Check if we found any drum notes
+                            if (sourceMidiNotes.size === 0) {
+                                console.warn('No drum notes found in MIDI file');
+                                alert('No drum notes were found in this MIDI file. Please select a MIDI file containing drum data.');
+                                return;
+                            }
+                            
+                            // Update file info to remove "Processing..." message
+                            fileInfo.textContent = `Selected file: ${file.name} (${formatFileSize(file.size)})`;
+                            
+                            showMappingInterface();
+                            updateMappingTable();
+                            
+                            // Show preview of notes
+                            displayNotePreview();
+                            
+                            console.log('MIDI file successfully parsed with', sourceMidiNotes.size, 'unique notes');
+                        } catch (error) {
+                            console.error('Error during MIDI parsing in animation frame:', error);
+                            alert('Error parsing MIDI file: ' + (error.message || 'Unknown error') + 
+                                  '\n\nPlease ensure it is a valid MIDI file in format 0 or 1.');
+                        }
+                    });
+                    
+                } catch (error) {
+                    console.error('Error parsing MIDI file:', error);
+                    alert('Error parsing MIDI file: ' + (error.message || 'Unknown error') + 
+                          '\n\nPlease ensure it is a valid MIDI file in format 0 or 1.');
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('Error reading the file. Please try again.');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }, 50); // Small delay to let the UI update first
+    }
+
+    /**
+     * Extract all unique drum notes from the MIDI file
+     */
+    function extractDrumNotes() {
+        sourceMidiNotes.clear();
+        
+        // Go through all tracks in the MIDI file
+        parsedMidi.tracks.forEach(track => {
+            // Look for drum tracks or extract all note events
+            const notes = track.notes;
+            
+            notes.forEach(note => {
+                // Store the MIDI note numbers
+                sourceMidiNotes.add(note.midi);
+            });
+        });
+        
+        console.log('Extracted MIDI notes:', [...sourceMidiNotes]);
+    }
+
+    /**
+     * Show the mapping interface once a file is loaded
+     */
+    function showMappingInterface() {
+        mappingContainer.style.display = 'block';
+    }
+
+    /**
+     * Update the mapping table when presets change - optimized version
+     * Uses DocumentFragment for better performance
+     */
+    function updateMappingTable() {
+        const sourcePreset = sourcePresetSelect.value;
+        const targetPreset = targetPresetSelect.value;
+        
+        // Clear the current mapping table
+        mappingTableBody.innerHTML = '';
+        
+        // Clear the current mapping
+        currentMapping = {};
+        
+        // Get source and target preset data
+        const sourceMapping = window.DrumPresets.presets[sourcePreset].mapping;
+        const targetMapping = window.DrumPresets.presets[targetPreset].mapping;
+        
+        // Sort the source MIDI notes
+        const sortedNotes = [...sourceMidiNotes].sort((a, b) => a - b);
+        
+        // Create a document fragment for better performance
+        const fragment = document.createDocumentFragment();
+        
+        // Process rows in batches to avoid UI freezing
+        const processRowBatch = (startIndex, batchSize) => {
+            const endIndex = Math.min(startIndex + batchSize, sortedNotes.length);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                const noteNumber = sortedNotes[i];
+                const row = document.createElement('tr');
+                
+                // Source note cell
+                const sourceNoteCell = document.createElement('td');
+                sourceNoteCell.textContent = noteNumber;
+                row.appendChild(sourceNoteCell);
+                
+                // Drum sound name cell
+                const drumSoundCell = document.createElement('td');
+                drumSoundCell.textContent = sourceMapping[noteNumber] || 'Unknown';
+                row.appendChild(drumSoundCell);
+                
+                // Target note cell with dropdown
+                const targetNoteCell = document.createElement('td');
+                const selectElement = document.createElement('select');
+                selectElement.className = 'note-input';
+                selectElement.dataset.sourceNote = noteNumber;
+                
+                // Add an empty option
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '-- Select --';
+                selectElement.appendChild(emptyOption);
+                
+                // Create options array to optimize DOM operations
+                const options = [];
+                
+                // Add options for all target preset notes
+                Object.entries(targetMapping).forEach(([targetNote, targetName]) => {
+                    const option = document.createElement('option');
+                    option.value = targetNote;
+                    option.textContent = `${targetNote} - ${targetName}`;
+                    
+                    // Attempt to match source and target by drum name
+                    if (sourceMapping[noteNumber] && targetName === sourceMapping[noteNumber]) {
+                        option.selected = true;
+                        // Update current mapping
+                        currentMapping[noteNumber] = parseInt(targetNote);
+                    }
+                    
+                    options.push(option);
+                });
+                
+                // Append all options at once
+                options.forEach(option => selectElement.appendChild(option));
+                
+                // Listen for changes to update the mapping
+                selectElement.addEventListener('change', (e) => {
+                    const sourceNote = parseInt(e.target.dataset.sourceNote);
+                    const targetNote = e.target.value ? parseInt(e.target.value) : null;
+                    
+                    if (targetNote) {
+                        currentMapping[sourceNote] = targetNote;
+                    } else {
+                        delete currentMapping[sourceNote];
+                    }
+                    
+                    // Enable/disable apply button based on whether all notes are mapped
+                    checkMappingCompletion();
+                });
+                
+                targetNoteCell.appendChild(selectElement);
+                row.appendChild(targetNoteCell);
+                
+                fragment.appendChild(row);
+            }
+            
+            // If we've processed all rows
+            if (endIndex >= sortedNotes.length) {
+                mappingTableBody.appendChild(fragment);
+                // Check if all notes are already mapped
+                checkMappingCompletion();
+            } else {
+                // Process the next batch in the next animation frame to avoid UI freezing
+                requestAnimationFrame(() => {
+                    processRowBatch(endIndex, batchSize);
+                });
+            }
+        };
+        
+        // Start processing rows in batches of 20
+        processRowBatch(0, 20);
+    }
+
+    /**
+     * Check if all source notes have been mapped
+     */
+    function checkMappingCompletion() {
+        const allMapped = [...sourceMidiNotes].every(note => note in currentMapping);
+        applyMappingBtn.disabled = !allMapped;
+    }
+
+    /**
+     * Apply the mapping to create a new MIDI file
+     */
+    function applyMapping() {
+        if (!parsedMidi) return;
+        
+        // Show a processing message
+        const originalText = applyMappingBtn.textContent;
+        applyMappingBtn.textContent = "Processing...";
+        applyMappingBtn.disabled = true;
+        
+        // Use setTimeout to prevent UI freezing during remapping
+        setTimeout(() => {
+            try {
+                // Create a deep clone of the MIDI file
+                const remappedMidi = new Midi(parsedMidi.toArray());
+                
+                // Apply the mapping to all notes
+                remappedMidi.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        // If we have a mapping for this note, change it
+                        if (currentMapping[note.midi]) {
+                            note.midi = currentMapping[note.midi];
+                            note.name = Midi.midiToNoteName(note.midi);
+                        }
+                    });
+                });
+                
+                // Store the remapped MIDI
+                parsedMidi = remappedMidi;
+                
+                // Update the note preview
+                displayNotePreview();
+                
+                // Enable download button
+                downloadBtn.disabled = false;
+                
+                // Reset button
+                applyMappingBtn.textContent = originalText;
+                applyMappingBtn.disabled = false;
+                
+                // Alert the user
+                alert('Mapping applied successfully! You can now download the remapped MIDI file.');
+            } catch (error) {
+                console.error('Error applying mapping:', error);
+                alert('Error applying mapping: ' + (error.message || 'Unknown error'));
+                
+                // Reset button
+                applyMappingBtn.textContent = originalText;
+                applyMappingBtn.disabled = false;
+            }
+        }, 50);
+    }
+
+    /**
+     * Download the remapped MIDI file
+     */
+    function downloadRemappedMidi() {
+        if (!parsedMidi) return;
+        
+        // Show processing message
+        const originalText = downloadBtn.textContent;
+        downloadBtn.textContent = "Preparing download...";
+        downloadBtn.disabled = true;
+        
+        // Use setTimeout to prevent UI freezing during MIDI export
+        setTimeout(() => {
+            try {
+                // Convert the MIDI object to an ArrayBuffer
+                const midiData = parsedMidi.toArray();
+                
+                // Create a Blob from the ArrayBuffer
+                const blob = new Blob([midiData], { type: 'audio/midi' });
+                
+                // Create a download link
+                const downloadLink = document.createElement('a');
+                
+                // Generate a filename
+                const originalName = currentMidiFile.name;
+                const extension = originalName.split('.').pop();
+                const newFileName = originalName.substring(0, originalName.lastIndexOf('.')) + '_remapped.' + extension;
+                
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = newFileName;
+                
+                // Trigger download
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // Reset button
+                downloadBtn.textContent = originalText;
+                downloadBtn.disabled = false;
+            } catch (error) {
+                console.error('Error preparing download:', error);
+                alert('Error preparing download: ' + (error.message || 'Unknown error'));
+                
+                // Reset button
+                downloadBtn.textContent = originalText;
+                downloadBtn.disabled = false;
+            }
+        }, 50);
+    }
+
+    /**
+     * Display a visual preview of the notes in the MIDI file
+     * Optimized to handle large MIDI files better
+     */
+    function displayNotePreview() {
+        if (!parsedMidi) {
+            previewContent.innerHTML = '<p>No MIDI data to display</p>';
+            return;
+        }
+        
+        previewContent.innerHTML = '<p>Processing note preview...</p>';
+        
+        // Use setTimeout to prevent UI freezing during preview generation
+        setTimeout(() => {
+            // Get the source preset for note names
+            const sourcePreset = window.DrumPresets.presets[sourcePresetSelect.value].mapping;
+            
+            // Collect all unique notes from the MIDI file
+            const allNotes = new Map();
+            
+            parsedMidi.tracks.forEach(track => {
+                track.notes.forEach(note => {
+                    // Count occurrences of each note
+                    if (allNotes.has(note.midi)) {
+                        allNotes.set(note.midi, allNotes.get(note.midi) + 1);
+                    } else {
+                        allNotes.set(note.midi, 1);
+                    }
+                });
+            });
+            
+            // Display notes sorted by MIDI number
+            const sortedNotes = [...allNotes.entries()].sort((a, b) => a[0] - b[0]);
+            
+            if (sortedNotes.length === 0) {
+                previewContent.innerHTML = '<p>No notes found in this MIDI file</p>';
+                return;
+            }
+            
+            // Clear previous content
+            previewContent.innerHTML = '';
+            
+            // Create a document fragment for better performance
+            const fragment = document.createDocumentFragment();
+            
+            // Create elements for each note
+            sortedNotes.forEach(([noteNumber, count]) => {
+                const noteElement = document.createElement('div');
+                noteElement.className = 'preview-note';
+                
+                const noteName = sourcePreset[noteNumber] || 'Unknown';
+                noteElement.textContent = `${noteNumber} - ${noteName} (${count})`;
+                
+                fragment.appendChild(noteElement);
+            });
+            
+            // Add all elements at once
+            previewContent.appendChild(fragment);
+        }, 0);
+    }
+    
+    /**
+     * Format file size in a human-readable format
+     */
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' bytes';
+        else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        else return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+    
+    /**
+     * Debug MIDI file information
+     * Helps diagnose issues with file parsing
+     */
+    function debugMidiFile(midiFile, arrayBuffer) {
+        console.group('MIDI File Debug Info');
+        
+        // File information
+        console.log('File Name:', midiFile.name);
+        console.log('File Size:', formatFileSize(midiFile.size));
+        console.log('File Type:', midiFile.type);
+        console.log('Last Modified:', new Date(midiFile.lastModified).toLocaleString());
+        
+        // ArrayBuffer information
+        console.log('ArrayBuffer size:', arrayBuffer.byteLength);
+        
+        // Header check for MThd
+        const firstFourBytes = new Uint8Array(arrayBuffer, 0, 4);
+        const headerSignature = String.fromCharCode(...firstFourBytes);
+        console.log('File Signature:', headerSignature);
+        console.log('Is Valid MIDI Signature:', headerSignature === 'MThd');
+        
+        console.groupEnd();
+    }
+      
+    /**
+     * Load custom presets from storage or JSON file
+     */
+    function loadCustomPresets() {
+        // First check localStorage for saved presets
+        const savedPresets = localStorage.getItem('midiRemapperPresets');
+        if (savedPresets) {
+            try {
+                customPresets = JSON.parse(savedPresets);
+                console.log('Loaded custom presets from localStorage:', customPresets);
+                addCustomPresetUI();
+                return;
+            } catch (e) {
+                console.error('Error loading presets from localStorage:', e);
+            }
+        }
+        
+        // Fall back to fetching the preset file
+        fetch('presets/custom_mappings.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load custom presets');
+                }
+                return response.json();
+            })
+            .then(data => {
+                customPresets = data;
+                console.log('Custom presets loaded from file:', customPresets);
+                
+                // Add custom preset section to the UI
+                addCustomPresetUI();
+            })
+            .catch(error => {
+                console.error('Error loading custom presets:', error);
+            });
+    }
+    
+    /**
+     * Add custom preset UI elements
+     */
+    function addCustomPresetUI() {
+        // Create custom preset section in the panel
+        const presetSection = document.querySelector('.preset-section');
+        
+        const customPresetLabel = document.createElement('label');
+        customPresetLabel.textContent = 'Custom Presets:';
+        customPresetLabel.setAttribute('for', 'customPreset');
+        
+        const customPresetSelect = document.createElement('select');
+        customPresetSelect.id = 'customPreset';
+        customPresetSelect.className = 'preset-select';
+        
+        // Add default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '-- Select a Custom Preset --';
+        customPresetSelect.appendChild(defaultOption);
+        
+        // Add options for each custom preset
+        Object.entries(customPresets).forEach(([key, preset]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = preset.name;
+            customPresetSelect.appendChild(option);
+        });
+        
+        // Add event listener to apply custom preset
+        customPresetSelect.addEventListener('change', (e) => {
+            const selectedPreset = e.target.value;
+            if (selectedPreset && customPresets[selectedPreset]) {
+                applyCustomPreset(customPresets[selectedPreset]);
+            }
+        });
+        
+        // Add to the UI
+        presetSection.appendChild(customPresetLabel);
+        presetSection.appendChild(customPresetSelect);
+    }
+    
+    /**
+     * Apply a custom preset to the mapping
+     */
+    function applyCustomPreset(preset) {
+        // Set source and target presets
+        sourcePresetSelect.value = preset.sourcePreset;
+        targetPresetSelect.value = preset.targetPreset;
+        
+        // Update the mapping table to reflect the presets
+        updateMappingTable();
+        
+        // Apply the custom mapping
+        Object.entries(preset.customMapping).forEach(([sourceNote, targetNote]) => {
+            sourceNote = parseInt(sourceNote);
+            targetNote = parseInt(targetNote);
+            
+            // Update the dropdown selection if this note exists in our source
+            if (sourceMidiNotes.has(sourceNote)) {
+                // Find the dropdown for this source note
+                const dropdown = Array.from(document.querySelectorAll('.note-input'))
+                    .find(select => parseInt(select.dataset.sourceNote) === sourceNote);
+                
+                if (dropdown) {
+                    dropdown.value = targetNote.toString();
+                    
+                    // Update the mapping
+                    currentMapping[sourceNote] = targetNote;
+                }
+            }
+        });
+        
+        // Check if all notes are mapped
+        checkMappingCompletion();
+    }
+    
+    /**
+     * Save the current mapping as a custom preset
+     */
+    function saveCustomMapping() {
+        // Check if we have a mapping to save
+        if (Object.keys(currentMapping).length === 0) {
+            alert('Please create a mapping first before saving.');
+            return;
+        }
+        
+        // Get a name for the preset
+        const presetName = prompt('Enter a name for this preset:');
+        if (!presetName) return;
+        
+        // Create the preset object
+        const newPreset = {
+            name: presetName,
+            description: `Custom mapping from ${sourcePresetSelect.options[sourcePresetSelect.selectedIndex].text} to ${targetPresetSelect.options[targetPresetSelect.selectedIndex].text}`,
+            sourcePreset: sourcePresetSelect.value,
+            targetPreset: targetPresetSelect.value,
+            customMapping: { ...currentMapping }
+        };
+        
+        // Generate a key for the preset
+        const presetKey = 'custom_' + Date.now();
+        
+        // Add to the custom presets
+        customPresets[presetKey] = newPreset;
+        
+        // Update the custom preset dropdown
+        const customPresetSelect = document.getElementById('customPreset');
+        if (customPresetSelect) {
+            const option = document.createElement('option');
+            option.value = presetKey;
+            option.textContent = presetName;
+            customPresetSelect.appendChild(option);
+            
+            // Select the new preset
+            customPresetSelect.value = presetKey;
+        }
+        
+        alert('Preset saved successfully!');
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('midiRemapperPresets', JSON.stringify(customPresets));
+    }
+    
+    /**
+     * Clear the current mapping
+     */
+    function clearMapping() {
+        // Get all the select elements in the mapping table
+        const selects = document.querySelectorAll('.note-input');
+        
+        // Reset each select to default
+        selects.forEach(select => {
+            select.value = '';
+        });
+        
+        // Clear the current mapping object
+        currentMapping = {};
+        
+        // Disable the apply button
+        applyMappingBtn.disabled = true;
+        
+        // Alert the user
+        alert('Mapping has been cleared.');
+    }
+    
+    // Load custom presets on startup
+    loadCustomPresets();
+});
