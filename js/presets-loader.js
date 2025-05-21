@@ -15,7 +15,7 @@ function populatePresetDropdowns() {
     
     // Check if DRUM_PRESETS exists
     if (!window.DRUM_PRESETS) {
-        console.error('DRUM_PRESETS not found. Make sure presets.js is loaded before this script.');
+        console.error('DRUM_PRESETS not found. Make sure presets.js is loaded Correctly before this script.');
         return;
     }
     
