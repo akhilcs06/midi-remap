@@ -567,8 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
         else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         else return (bytes / 1048576).toFixed(1) + ' MB';
     }
-    
-    /**
+      /**
      * Load custom presets from storage or JSON file
      */
     function loadCustomPresets() {
@@ -594,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
                 return response.json();
             })
             .then(data => {
-                customPresets = data;
+                customPresets = data || {};
                 console.log('Custom presets loaded from file:', customPresets);
                 
                 // Add custom preset section to the UI
@@ -602,7 +601,10 @@ document.addEventListener('DOMContentLoaded', () => {      // DOM Elements
             })
             .catch(error => {
                 console.error('Error loading custom presets:', error);
-                showToast('Failed to load custom presets', 'error', 'Preset Error');
+                // Initialize with empty presets instead of showing error
+                customPresets = {};
+                addCustomPresetUI();
+                console.log('Initialized with empty custom presets due to error');
             });
     }
     
