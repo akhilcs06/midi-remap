@@ -49,7 +49,7 @@
         https://www.googletagmanager.com
         https://tpc.googlesyndication.com
         https://securepubads.g.doubleclick.net;
-      fenced-frame-src 'self' 'about:blank' 'unsafe-inline' 
+      fenced-frame-src 'self' 'unsafe-inline' 
         https://googleads.g.doubleclick.net
         https://tpc.googlesyndication.com
         https://securepubads.g.doubleclick.net
