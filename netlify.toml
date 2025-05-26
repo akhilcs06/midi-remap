@@ -49,5 +49,10 @@
         https://www.googletagmanager.com
         https://tpc.googlesyndication.com
         https://securepubads.g.doubleclick.net;
+      fenced-frame-src 'self'
+        https://googleads.g.doubleclick.net
+        https://tpc.googlesyndication.com
+        https://securepubads.g.doubleclick.net
+        https://ep2.adtrafficquality.google;
       font-src 'self';
     """
