@@ -27,6 +27,8 @@
         https://ep2.adtrafficquality.google;
       style-src 'self' 'unsafe-inline';
       connect-src 'self'
+        https://cdn.skypack.dev
+        https://www.googletagmanager.com
         https://www.google-analytics.com
         https://pagead2.googlesyndication.com
         https://tpc.googlesyndication.com
