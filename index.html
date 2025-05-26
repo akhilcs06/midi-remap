@@ -3,12 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Free Online MIDI Remapper - Remap your MIDI files easily with custom presets and mappings.">
+    <!-- Preload critical assets -->
+    <link rel="preload" href="css/styles.css" as="style">
+    <link rel="preload" href="js/app.js" as="script">
+    <link rel="preload" href="favicon.png" as="image" type="image/png"><meta name="description" content="Free Online MIDI Drum Remapper - Convert and remap drum MIDI notes between different libraries with custom presets. Easy to use, no download required.">
     <meta name="robots" content="index, follow">
+    <meta name="keywords" content="MIDI remapper, MIDI drum converter, drum mapping tool, MIDI note conversion, online MIDI editor, free MIDI tool">
     <link rel="canonical" href="https://onlinemidiremap.com/" />
-    <title>MIDI Drum Remapper</title>
+    <title>MIDI Drum Remapper | Free Online MIDI Conversion Tool</title>
+    <meta property="og:title" content="MIDI Drum Remapper | Free Online MIDI Conversion Tool">
+    <meta property="og:description" content="Convert drum MIDI notes between different libraries with custom presets. No download required.">
+    <meta property="og:url" content="https://onlinemidiremap.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://onlinemidiremap.com/favicon.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="MIDI Drum Remapper">
+    <meta name="twitter:description" content="Free online tool to remap MIDI drum notes between different libraries">
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/blog-styles.css">
     <link rel="icon" type="image/png" href="favicon.png" />
+    <!-- Structured data for better SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "MIDI Drum Remapper",
+      "applicationCategory": "MusicApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Free online tool to remap MIDI drum notes between different libraries with custom presets",
+      "url": "https://onlinemidiremap.com/",
+      "featureList": ["MIDI note remapping", "Custom presets", "Drag and drop interface", "Instant download"]
+    }
+    </script>
 </head>
 <body>
     <div id="toast-container" class="toast-container"></div>
@@ -28,9 +59,13 @@
                 <span class="slider round"></span>
                 <span class="toggle-label">Dark Mode</span>
             </label>
-        </div>
-        </div>
+        </div>        </div>
     </header>
+
+    <nav class="site-nav">
+        <a href="index.html" class="active">Home</a>
+        <a href="blog.html">Blog</a>
+    </nav>
 
         <div class="info-panel">
             <h2>How It Works</h2>
@@ -102,11 +137,16 @@
             <h2>MIDI Note Preview</h2>
             <div class="preview-content" id="previewContent">
                 <p>No MIDI data to display</p>
-            </div>        </div>    </div>    <footer>
+            </div>        </div>    </div>    
+    <footer>
         <p>&copy; 2025 MIDI Drum Remapper | <a href="mailto:support@onlinemidiremap.com">support@onlinemidiremap.com</a></p>
+        <div class="footer-links">
+            <a href="index.html">Home</a>
+            <a href="blog.html">Blog</a>
+            <a href="privacy.html">Privacy Policy</a>
+        </div>
     </footer>
-    
-    <!-- Load scripts as ES modules -->
+      <!-- Load scripts as ES modules -->
     <script type="module">
         // Import from CDN 
         import { Midi } from 'https://cdn.skypack.dev/@tonejs/midi';
@@ -118,6 +158,30 @@
         import './js/presets.js';
         import './js/presets-loader.js';
         import './js/app.js';
+    </script>    <script>
+        // Simple script to toggle dark mode
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize dark mode on page load
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            if (darkModeToggle) {
+                // Set class based on current toggle state
+                document.documentElement.classList.toggle('dark-mode', darkModeToggle.checked);
+                
+                // Add event listener for changes
+                darkModeToggle.addEventListener('change', function() {
+                    document.documentElement.classList.toggle('dark-mode', this.checked);
+                });
+            }
+        });
+    </script>
+    <script src="js/seo-enhancer.js" defer></script>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXX');
     </script>
 </body>
 </html>
