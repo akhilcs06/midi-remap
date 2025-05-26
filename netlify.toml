@@ -23,7 +23,8 @@
         https://www.googletagmanager.com
         https://www.google-analytics.com
         https://www.googletagservices.com
-        https://securepubads.g.doubleclick.net;
+        https://securepubads.g.doubleclick.net
+        https://ep2.adtrafficquality.google;
       style-src 'self' 'unsafe-inline';
       connect-src 'self'
         https://www.google-analytics.com
