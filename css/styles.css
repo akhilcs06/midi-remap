@@ -523,6 +523,17 @@ footer {
     border-top: 1px solid var(--border-color);
 }
 
+footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+footer a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
 /* Toast Notifications */
 .toast-container {
     position: fixed;
